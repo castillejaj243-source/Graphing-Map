@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        #mynetwork {
+            width: 100vw;
+            height: 100vh;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mynetwork"></div>
+
+    <script>
+    //this code came straight from the source 
+        const people = [
+            { 
+                id: 1, 
+                name: "original", 
+                link: "https://games-xplorer.neocities.org/Code.txt", 
+                color: "#00ffff", 
+                connections: [
+                    { to: 2, strength: 7 },
+                ] 
+            },
+            { 
+                id: 2, 
+                name: "example", 
+                link: "https://bettercode.com/", 
+                color: "#ff3333", 
+                connections: [
+                    { to: 1, strength: 7 },
+                ] 
+            },
+            { 
+                id: 3, 
+                name: "Cakes has no lies", 
+                link: "https://code.com/", 
+                color: "#ffff00", 
+                connections: [
+                    { to: 1, strength: 7 },
+                    { to: 2, strength: 7 }
+                ] 
+            },
+        ];
+
+        const nodes = new vis.DataSet([]);
+        const edges = new vis.DataSet([]);
+        let network = null;
+        let isClustered = false;
+
+        function initMap() {
+            people.forEach(p => {
+                nodes.add({ 
+                    id: p.id, 
+                    label: p.name, 
+                    color: p.color,
+                    shape: 'dot',
+                    size: 20
+                });
+            });
+
+            people.forEach(p => {
+                if (p.connections) {
+                    p.connections.forEach(conn => {
+                        if (people.some(person => person.id === conn.to)) {
+                            edges.add({
+                                from: p.id,
+                                to: conn.to,
+                                width: (conn.strength || 5) * 0.8,
+                                length: 250 - ((conn.strength || 5) * 15),
+                                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+                                color: { inherit: 'from' },
+                                opacity: 0.5
+                            });
+                        }
+                    });
+                }
+            });
+
+            const container = document.getElementById('mynetwork');
+            const data = { nodes, edges };
+            
+            const options = {
+                nodes: {
+                    font: { 
+                        color: '#ffffff', 
+                        face: 'Times New Roman', 
+                        size: 18, 
+                        strokeWidth: 2, 
+                        strokeColor: '#000000' 
+                    },
+                    borderWidth: 2,
+                },
+                edges: {
+                    smooth: { enabled: true, type: 'curvedCW', roundness: 0.2 }
+                },
+                physics: {
+                    enabled: true,
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: {
+                        gravitationalConstant: -100,
+                        springLength: 200,
+                        avoidOverlap: 1
+                    },
+                    stabilization: {
+                        enabled: true,
+                        iterations: 1000,
+                        updateInterval: 25
+                    }
+                },
+                interaction: {
+                    dragNodes: false, 
+                    dragView: true,  
+                    zoomView: true,  
+                    hover: true
+                }
+            };
+
+            network = new vis.Network(container, data, options);
+
+            network.once("stabilizationIterationsDone", function () {
+                network.setOptions({ physics: false });
+            });
+
+            network.on("click", (params) => {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    if (network.isCluster(nodeId)) return;
+                    
+                    const person = people.find(p => p.id === nodeId);
+                    if (person && person.link) {
+                        window.open(person.link, '_blank');
+                    }
+                }
+            });
+
+            network.on("zoom", (params) => {
+                const THRESHOLD = 0.45;
+                if (params.scale < THRESHOLD && !isClustered) {
+                    clusterByColor();
+                    isClustered = true;
+                } else if (params.scale >= THRESHOLD && isClustered) {
+                    unclusterAll();
+                    isClustered = false;
+                }
+            });
+        }
+
+        function clusterByColor() {
+            const colors = [...new Set(people.map(p => p.color))];
+            colors.forEach(c => {
+                network.cluster({
+                    joinCondition: (child) => child.color === c,
+                    clusterNodeProperties: {
+                        id: 'cluster_' + c,
+                        color: c,
+                        label: 'Group',
+                        shape: 'dot',
+                        size: 40,
+                        font: { color: '#ffffff', face: 'Times New Roman', size: 22 }
+                    }
+                });
+            });
+        }
+
+        function unclusterAll() {
+            Object.keys(network.body.nodes).forEach(id => {
+                if (network.isCluster(id)) network.openCluster(id);
+            });
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+  </html>
